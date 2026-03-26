@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>American Newspaper Happiness — __START_YEAR__–__END_YEAR__</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.1/plotly.min.js"></script>
+<style>
+  /* ── Reset & base ─────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Georgia', serif;
+    background: #0f1923;
+    color: #e8dcc8;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Header ───────────────────────────────────────────────────── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 24px 6px;
+    background: linear-gradient(180deg, #1a2a3a 0%, #0f1923 100%);
+    border-bottom: 1px solid #2a3f52;
+    flex-shrink: 0;
+  }
+
+  .header-left h1 {
+    font-size: 1.25rem;
+    font-weight: normal;
+    letter-spacing: 0.04em;
+    color: #f0e4c8;
+  }
+  .header-left p {
+    font-size: 0.72rem;
+    color: #8aabbf;
+    margin-top: 2px;
+    font-style: italic;
+  }
+
+  /* big year badge */
+  #year-badge {
+    font-size: 3.2rem;
+    font-weight: 700;
+    font-family: 'Georgia', serif;
+    color: #f0c060;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    text-shadow: 0 0 20px rgba(240,192,96,0.35);
+    transition: color 0.25s;
+  }
+
+  /* score legend */
+  .legend-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+  .legend-label {
+    font-size: 0.7rem;
+    color: #8aabbf;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .gradient-bar {
+    width: 160px;
+    height: 14px;
+    border-radius: 7px;
+    background: linear-gradient(90deg,
+      #2166ac 0%, #4393c3 20%, #92c5de 35%,
+      #f7f7f7 50%, #fdbf6f 65%, #e66101 80%, #b2182b 100%);
+    border: 1px solid rgba(255,255,255,0.12);
+  }
+  .gradient-ticks {
+    display: flex;
+    justify-content: space-between;
+    width: 160px;
+    font-size: 0.62rem;
+    color: #8aabbf;
+  }
+
+  /* ── Map ──────────────────────────────────────────────────────── */
+  #map-container {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+  }
+  #map {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* ── Stats bar above the controls ────────────────────────────── */
+  #stats-bar {
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    padding: 5px 24px;
+    font-size: 0.72rem;
+    color: #8aabbf;
+    background: #0f1923;
+    flex-shrink: 0;
+  }
+  .stat-item { display: flex; align-items: center; gap: 6px; }
+  .stat-value { color: #f0c060; font-weight: bold; font-size: 0.85rem; }
+
+  /* ── Controls panel ───────────────────────────────────────────── */
+  #controls {
+    background: #1a2a3a;
+    border-top: 1px solid #2a3f52;
+    padding: 8px 24px 10px;
+    flex-shrink: 0;
+  }
+
+  /* row with play/step + speed buttons */
+  .btn-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+
+  /* play / pause button */
+  #play-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #f0c060;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, transform 0.1s;
+    flex-shrink: 0;
+  }
+  #play-btn:hover { background: #ffd080; transform: scale(1.08); }
+  #play-btn svg { width: 12px; height: 12px; fill: #0f1923; }
+
+  /* step buttons */
+  .step-btn {
+    width: 26px;
+    height: 26px;
+    border-radius: 4px;
+    background: #2a3f52;
+    border: 1px solid #3a5468;
+    color: #e8dcc8;
+    font-size: 1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.12s;
+    flex-shrink: 0;
+  }
+  .step-btn:hover { background: #3a5468; }
+
+  /* speed selector */
+  .speed-label {
+    font-size: 0.68rem;
+    color: #8aabbf;
+    margin-left: 8px;
+  }
+  .speed-btn {
+    background: #2a3f52;
+    border: 1px solid #3a5468;
+    color: #c8d8e8;
+    font-size: 0.68rem;
+    padding: 2px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .speed-btn.active { background: #f0c060; color: #0f1923; border-color: #f0c060; font-weight: bold; }
+  .speed-btn:hover:not(.active) { background: #3a5468; }
+
+  /* ── Timeline chart wrapper ───────────────────────────────────── */
+  #timeline-wrap {
+    position: relative;
+  }
+  #timeline {
+    width: 100%;
+    height: 90px;
+  }
+  /* transparent overlay captures mouse/touch for scrubbing */
+  #timeline-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    cursor: crosshair;
+    z-index: 10;
+  }
+
+  /* tooltip */
+  #tooltip {
+    position: fixed;
+    background: rgba(10,20,30,0.95);
+    border: 1px solid #3a5468;
+    border-radius: 6px;
+    padding: 8px 12px;
+    pointer-events: none;
+    font-size: 0.75rem;
+    color: #e8dcc8;
+    display: none;
+    z-index: 1000;
+    max-width: 220px;
+    line-height: 1.5;
+  }
+  #tooltip .t-name { font-size: 0.82rem; font-weight: bold; color: #f0c060; margin-bottom: 3px; }
+  #tooltip .t-score { font-size: 1.1rem; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────────────────── -->
+<header>
+  <div class="header-left">
+    <h1>American Newspaper Happiness &nbsp;·&nbsp; __START_YEAR__–__END_YEAR__</h1>
+    <p>Hedonometer sentiment scores (labMT) · AmericanStories dataset · samples per publication/year</p>
+  </div>
+
+  <div id="year-badge">__START_YEAR__</div>
+
+  <div class="legend-wrap">
+    <span class="legend-label">Happiness score</span>
+    <div class="gradient-bar"></div>
+    <div class="gradient-ticks" id="legend-ticks">
+      <!-- populated by JS once SCORE_MIN/MAX are known -->
+    </div>
+  </div>
+</header>
+
+<!-- ── Map ─────────────────────────────────────────────────────────────── -->
+<div id="map-container">
+  <div id="map"></div>
+</div>
+
+<!-- ── Stats bar ───────────────────────────────────────────────────────── -->
+<div id="stats-bar">
+  <div class="stat-item">Publications visible: <span class="stat-value" id="stat-count">–</span></div>
+  <div class="stat-item">Mean happiness: <span class="stat-value" id="stat-mean">–</span></div>
+  <div class="stat-item">Happiest: <span class="stat-value" id="stat-max">–</span></div>
+  <div class="stat-item">Saddest: <span class="stat-value" id="stat-min">–</span></div>
+</div>
+
+<!-- ── Controls ────────────────────────────────────────────────────────── -->
+<div id="controls">
+
+  <!-- play / step / speed row -->
+  <div class="btn-row">
+    <button class="step-btn" id="prev-btn" title="Previous year (←)">‹</button>
+    <button id="play-btn" title="Play / Pause (Space)">
+      <svg id="icon-play"  viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
+      <svg id="icon-pause" viewBox="0 0 24 24" style="display:none">
+        <rect x="5"  y="3" width="4" height="18"/>
+        <rect x="15" y="3" width="4" height="18"/>
+      </svg>
+    </button>
+    <button class="step-btn" id="next-btn" title="Next year (→)">›</button>
+
+    <span class="speed-label">Speed:</span>
+    <button class="speed-btn" data-ms="2000">0.5×</button>
+    <button class="speed-btn active" data-ms="500">1× (½s)</button>
+    <button class="speed-btn" data-ms="250">2×</button>
+    <button class="speed-btn" data-ms="100">5×</button>
+  </div>
+
+  <!-- timeline chart — click or drag to scrub -->
+  <div id="timeline-wrap">
+    <div id="timeline"></div>
+    <div id="timeline-overlay"></div>
+  </div>
+
+</div>
+
+<!-- ── Data ─────────────────────────────────────────────────────────────── -->
+<script>
+/* __NEWSPAPER_DATA__ */
+</script>
+
+<script>
+// ── Colour scale helpers ───────────────────────────────────────────────────
+const _allScores = NEWSPAPER_DATA.map(d => d.score);
+const SCORE_MIN  = Math.min(..._allScores);
+const SCORE_MAX  = Math.max(..._allScores);
+const SCORE_MID  = ((SCORE_MIN + SCORE_MAX) / 2).toFixed(3);
+
+(function() {
+  const el = document.getElementById('legend-ticks');
+  if (el) el.innerHTML =
+    `<span>${SCORE_MIN.toFixed(3)}</span>` +
+    `<span>${SCORE_MID}</span>` +
+    `<span>${SCORE_MAX.toFixed(3)}</span>`;
+})();
+
+// Hedonometer-inspired diverging scale: blue → white → red/orange
+const COLORSCALE = [
+  [0.00, '#2166ac'],
+  [0.20, '#4393c3'],
+  [0.35, '#92c5de'],
+  [0.50, '#f7f7f7'],
+  [0.60, '#fdbf6f'],
+  [0.75, '#e66101'],
+  [1.00, '#b2182b'],
+];
+
+function scoreToColor(score) {
+  const t = Math.max(0, Math.min(1, (score - SCORE_MIN) / (SCORE_MAX - SCORE_MIN)));
+  for (let i = 0; i < COLORSCALE.length - 1; i++) {
+    const [t0, c0] = COLORSCALE[i];
+    const [t1, c1] = COLORSCALE[i + 1];
+    if (t >= t0 && t <= t1) {
+      return lerpColor(c0, c1, (t - t0) / (t1 - t0));
+    }
+  }
+  return COLORSCALE[COLORSCALE.length - 1][1];
+}
+function hexToRgb(hex) {
+  return [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)];
+}
+function lerpColor(c0, c1, t) {
+  const [r0,g0,b0] = hexToRgb(c0), [r1,g1,b1] = hexToRgb(c1);
+  return `rgb(${Math.round(r0+(r1-r0)*t)},${Math.round(g0+(g1-g0)*t)},${Math.round(b0+(b1-b0)*t)})`;
+}
+
+// ── Index data by year ─────────────────────────────────────────────────────
+const dataByYear = {};
+NEWSPAPER_DATA.forEach(d => {
+  if (!dataByYear[d.year]) dataByYear[d.year] = [];
+  dataByYear[d.year].push(d);
+});
+const YEARS = Object.keys(dataByYear).map(Number).sort();
+let currentYear = YEARS[0];
+
+// ── Compute per-year mean happiness for the timeline ──────────────────────
+const yearMeans = YEARS.map(y => {
+  const rows = dataByYear[y] || [];
+  if (!rows.length) return null;
+  return rows.reduce((sum, d) => sum + d.score, 0) / rows.length;
+});
+
+// Y-axis range: span of actual mean values with a small breathing-room buffer
+const _validMeans = yearMeans.filter(v => v !== null);
+const _tlMin = Math.min(..._validMeans);
+const _tlMax = Math.max(..._validMeans);
+const _tlPad = (_tlMax - _tlMin) * 0.12 || 0.05;
+const TL_YMIN = _tlMin - _tlPad;
+const TL_YMAX = _tlMax + _tlPad;
+
+// ── Build Plotly map trace ─────────────────────────────────────────────────
+function buildTrace(year) {
+  const rows = dataByYear[year] || [];
+  return {
+    type: 'scattergeo',
+    locationmode: 'USA-states',
+    lat:  rows.map(d => d.lat),
+    lon:  rows.map(d => d.lon),
+    mode: 'markers',
+    marker: {
+      size:       rows.map(d => Math.max(8, Math.min(32, 6 + Math.sqrt(d.n_sampled) * 0.55))),
+      color:      rows.map(d => d.score),
+      colorscale: COLORSCALE,
+      cmin: SCORE_MIN,
+      cmax: SCORE_MAX,
+      line: { width: 0.8, color: 'rgba(255,255,255,0.25)' },
+      opacity: 0.88,
+      showscale: false,
+    },
+    text: rows.map(d =>
+      `<b>${d.newspaper}</b><br>${d.city}, ${d.state}<br>` +
+      `Happiness: <b>${d.score.toFixed(3)}</b><br>` +
+      `Articles sampled: ${d.n_sampled.toLocaleString()}`
+    ),
+    hovertemplate: '%{text}<extra></extra>',
+    hoverlabel: {
+      bgcolor: 'rgba(10,20,30,0.95)',
+      bordercolor: '#3a5468',
+      font: { color: '#e8dcc8', size: 12, family: 'Georgia, serif' },
+    },
+  };
+}
+
+const mapLayout = {
+  geo: {
+    scope: 'usa',
+    projection: { type: 'albers usa' },
+    showland: true, landcolor: '#1e2e3e',
+    showlakes: true, lakecolor: '#0f1923',
+    showcoastlines: true, coastlinecolor: '#3a5468',
+    showframe: false,
+    showstates: true, statecolor: '#2a3f52',
+    bgcolor: '#0f1923',
+  },
+  paper_bgcolor: '#0f1923',
+  plot_bgcolor:  '#0f1923',
+  margin: { l: 0, r: 0, t: 0, b: 0 },
+  showlegend: false,
+  hoverdistance: 10,
+};
+
+const mapConfig = { displayModeBar: false, responsive: true, scrollZoom: false };
+
+Plotly.newPlot('map', [buildTrace(currentYear)], mapLayout, mapConfig);
+
+// ── Build Plotly timeline chart ────────────────────────────────────────────
+const timelineLayout = {
+  height: 90,
+  paper_bgcolor: '#1a2a3a',
+  plot_bgcolor:  '#1a2a3a',
+  margin: { l: 44, r: 14, t: 6, b: 26 },
+  xaxis: {
+    range: [YEARS[0] - 0.5, YEARS[YEARS.length - 1] + 0.5],
+    tickformat: 'd',
+    tickfont:  { size: 9, color: '#8aabbf', family: 'Georgia, serif' },
+    color:      '#8aabbf',
+    gridcolor:  'rgba(58,84,104,0.5)',
+    linecolor:  '#2a3f52',
+    fixedrange: true,
+    dtick: 5,
+  },
+  yaxis: {
+    range:      [TL_YMIN, TL_YMAX],
+    tickfont:  { size: 9, color: '#8aabbf', family: 'Georgia, serif' },
+    color:      '#8aabbf',
+    gridcolor:  'rgba(58,84,104,0.5)',
+    linecolor:  '#2a3f52',
+    fixedrange: true,
+    nticks: 4,
+    title: { text: 'Happiness', font: { size: 9, color: '#5a7a90' }, standoff: 4 },
+  },
+  shapes: [makeCursorShape(currentYear)],
+  showlegend: false,
+};
+
+const timelineConfig = { displayModeBar: false, responsive: true, staticPlot: true };
+
+// Flat baseline at the bottom of the y range — the fill sits between this and the line
+const timelineBaseline = {
+  x: YEARS,
+  y: YEARS.map(() => TL_YMIN),
+  type: 'scatter',
+  mode: 'none',
+  fill: 'none',
+  hoverinfo: 'skip',
+  showlegend: false,
+};
+
+const timelineTrace = {
+  x: YEARS,
+  y: yearMeans,
+  type: 'scatter',
+  mode: 'lines+markers',
+  line:      { color: '#f0c060', width: 2 },
+  marker:    { color: '#f0c060', size: 4 },
+  fill:      'tonexty',
+  fillcolor: 'rgba(240,192,96,0.12)',
+  hoverinfo: 'skip',
+  showlegend: false,
+};
+
+Plotly.newPlot('timeline', [timelineBaseline, timelineTrace], timelineLayout, timelineConfig);
+
+function makeCursorShape(year) {
+  return {
+    type: 'line',
+    x0: year, x1: year,
+    y0: 0,    y1: 1,
+    yref: 'paper',
+    line: { color: 'rgba(240,192,96,0.85)', width: 2 },
+  };
+}
+
+function updateTimelineCursor(year) {
+  Plotly.relayout('timeline', { shapes: [makeCursorShape(year)] });
+}
+
+// ── Timeline overlay — click and drag to scrub ─────────────────────────────
+const tlDiv     = document.getElementById('timeline');
+const tlOverlay = document.getElementById('timeline-overlay');
+let isScrubbing = false;
+
+function yearFromPointer(clientX) {
+  const rect = tlDiv.getBoundingClientRect();
+  const gd   = tlDiv;
+  // Use Plotly's internal axis info to map pixels → data coords
+  const xa        = gd._fullLayout.xaxis;
+  const plotLeft  = rect.left + xa._offset;
+  const plotWidth = xa._length;
+  const frac = (clientX - plotLeft) / plotWidth;
+  const raw  = xa.range[0] + frac * (xa.range[1] - xa.range[0]);
+  // Snap to the nearest year that actually has data
+  let closest = YEARS[0];
+  let minDist = Infinity;
+  YEARS.forEach(y => { const d = Math.abs(y - raw); if (d < minDist) { minDist = d; closest = y; } });
+  return closest;
+}
+
+tlOverlay.addEventListener('mousedown', e => {
+  isScrubbing = true;
+  stopPlay();
+  updateYear(yearFromPointer(e.clientX));
+});
+tlOverlay.addEventListener('mousemove', e => {
+  if (isScrubbing) updateYear(yearFromPointer(e.clientX));
+});
+tlOverlay.addEventListener('mouseup',    () => { isScrubbing = false; });
+tlOverlay.addEventListener('mouseleave', () => { isScrubbing = false; });
+
+tlOverlay.addEventListener('touchstart', e => {
+  isScrubbing = true;
+  stopPlay();
+  updateYear(yearFromPointer(e.touches[0].clientX));
+}, { passive: true });
+tlOverlay.addEventListener('touchmove', e => {
+  if (isScrubbing) updateYear(yearFromPointer(e.touches[0].clientX));
+}, { passive: true });
+tlOverlay.addEventListener('touchend', () => { isScrubbing = false; });
+
+// ── Update map + timeline cursor for a given year ─────────────────────────
+function updateYear(year) {
+  currentYear = year;
+  document.getElementById('year-badge').textContent = year;
+  updateTimelineCursor(year);
+
+  const rows   = dataByYear[year] || [];
+  const scores = rows.map(d => d.score);
+  const mean   = scores.length ? scores.reduce((a,b) => a+b, 0) / scores.length : 0;
+  const maxR   = scores.length ? rows[scores.indexOf(Math.max(...scores))] : null;
+  const minR   = scores.length ? rows[scores.indexOf(Math.min(...scores))] : null;
+
+  document.getElementById('stat-count').textContent = rows.length;
+  document.getElementById('stat-mean').textContent  = mean.toFixed(3);
+  document.getElementById('stat-max').textContent   = maxR ? `${maxR.newspaper.split(' ').slice(0,3).join(' ')} (${maxR.score.toFixed(3)})` : '–';
+  document.getElementById('stat-min').textContent   = minR ? `${minR.newspaper.split(' ').slice(0,3).join(' ')} (${minR.score.toFixed(3)})` : '–';
+
+  Plotly.react('map', [buildTrace(year)], mapLayout, mapConfig);
+}
+
+// ── Step buttons ──────────────────────────────────────────────────────────
+document.getElementById('prev-btn').addEventListener('click', () => {
+  const idx = YEARS.indexOf(currentYear);
+  if (idx > 0) updateYear(YEARS[idx - 1]);
+});
+document.getElementById('next-btn').addEventListener('click', () => {
+  const idx = YEARS.indexOf(currentYear);
+  if (idx < YEARS.length - 1) updateYear(YEARS[idx + 1]);
+});
+
+// ── Auto-play ─────────────────────────────────────────────────────────────
+let playInterval = null;
+let playMs = 500;
+
+const playBtn   = document.getElementById('play-btn');
+const iconPlay  = document.getElementById('icon-play');
+const iconPause = document.getElementById('icon-pause');
+
+function startPlay() {
+  iconPlay.style.display  = 'none';
+  iconPause.style.display = '';
+  playInterval = setInterval(() => {
+    const idx = YEARS.indexOf(currentYear);
+    updateYear(YEARS[idx < YEARS.length - 1 ? idx + 1 : 0]);
+  }, playMs);
+}
+
+function stopPlay() {
+  iconPlay.style.display  = '';
+  iconPause.style.display = 'none';
+  clearInterval(playInterval);
+  playInterval = null;
+}
+
+playBtn.addEventListener('click', () => {
+  if (playInterval) stopPlay(); else startPlay();
+});
+
+setTimeout(startPlay, 800);
+
+// ── Speed buttons ─────────────────────────────────────────────────────────
+document.querySelectorAll('.speed-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    playMs = +btn.dataset.ms;
+    if (playInterval) { stopPlay(); startPlay(); }
+  });
+});
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === ' ' || e.key === 'k') {
+    e.preventDefault(); playBtn.click();
+  } else if (e.key === 'ArrowLeft') {
+    document.getElementById('prev-btn').click();
+  } else if (e.key === 'ArrowRight') {
+    document.getElementById('next-btn').click();
+  }
+});
+
+// ── Initial render ────────────────────────────────────────────────────────
+updateYear(YEARS[0]);
+</script>
+
+</body>
+</html>
